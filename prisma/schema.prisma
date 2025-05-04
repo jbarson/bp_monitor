@@ -1,0 +1,82 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication
+model User {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  passkeys  PasskeyCredential[]
+  sessions  Session[]
+
+  @@index([email])
+}
+
+// PasskeyCredential model for WebAuthn credentials
+model PasskeyCredential {
+  id           String   @id @default(cuid())
+  credentialId String   @unique // WebAuthn credential ID (base64url encoded)
+  publicKey    String   // WebAuthn credential public key (base64url encoded)
+  counter      BigInt   // WebAuthn credential signature counter
+  transports   String?  // Optional WebAuthn authenticator transports (comma separated)
+  device       String?  // User-friendly device name
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([credentialId])
+}
+
+// Session model to group blood pressure readings
+model Session {
+  id        String    @id @default(cuid())
+  date      DateTime  @default(now()) // When the session was taken
+  notes     String?   // Optional notes about the session
+  complete  Boolean   @default(false) // Whether all 3 readings have been taken
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readings  BloodPressureReading[]
+
+  @@index([userId])
+  @@index([date])
+}
+
+// BloodPressureReading model for individual readings
+model BloodPressureReading {
+  id         String   @id @default(cuid())
+  systolic   Int      // Systolic pressure in mmHg
+  diastolic  Int      // Diastolic pressure in mmHg
+  heartRate  Int      // Heart rate in BPM
+  readingOrder Int    // Order within the session (1, 2, or 3)
+  timestamp  DateTime @default(now()) // When the reading was taken
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  sessionId  String
+  session    Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, readingOrder]) // Ensure each session has readings with unique order
+  @@index([sessionId])
+}
